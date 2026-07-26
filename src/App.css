@@ -213,11 +213,23 @@
   display: flex;
   gap: 10px;
   margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .secondary-button {
   background: #e9d5ff;
   color: #4c1d95;
+  padding: 10px 14px;
+  font-weight: 700;
+}
+
+.danger-button {
+  background: #fee2e2;
+  color: #b91c1c;
   padding: 10px 14px;
   font-weight: 700;
 }
@@ -268,6 +280,81 @@
 .category-item-active {
   background: #ede9fe;
   border-color: #8b5cf6;
+}
+
+.chart-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fafc, #eef2ff);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.chart-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chart-header span {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-height: 220px;
+}
+
+.chart-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-track {
+  width: 100%;
+  height: 150px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* background: rgba(255, 255, 255, 0.7); */
+  border-radius: 999px;
+  padding: 8px;
+}
+
+.chart-bar {
+  /* width: 100%; */
+
+  width: 20px;
+  min-height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #8b5cf6, #4f46e5);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25);
+}
+
+.chart-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+  text-align: center;
+}
+
+.chart-value {
+  font-size: 0.8rem;
+  color: #4c1d95;
+  text-align: center;
 }
 
 .expense-list {
@@ -324,9 +411,26 @@
 @media (max-width: 900px) {
   .hero-card,
   .panel-header,
-  .expense-item {
+  .expense-item,
+  .chart-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .chart-bars {
+    gap: 8px;
+  }
+
+  .chart-track {
+    height: 120px;
+  }
+
+  .chart-label {
+    font-size: 0.7rem;
+  }
+
+  .chart-value {
+    font-size: 0.74rem;
   }
 
   .dashboard-grid {

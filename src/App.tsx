@@ -1,29 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
-
-type Expense = {
-  id: number;
-  title: string;
-  amount: number;
-  category: string;
-  date: string;
-  notes: string;
-};
+import {
+  CATEGORY_OPTIONS,
+  DEFAULT_BUDGET,
+  createResetState,
+  type Expense,
+} from "./resetState";
 
 const STORAGE_KEY = "expense-tracker-expenses";
 const BUDGET_KEY = "expense-tracker-budget";
-const CATEGORY_OPTIONS = [
-  "Housing",
-  "Food",
-  "Gas",
-  "Utilities",
-  "Health",
-  "Shopping",
-  "Saving",
-  "Kids Fund",
-  "Education",
-  "Other",
-];
 
 const getInitialExpenses = (): Expense[] => {
   if (typeof window === "undefined") {
@@ -63,16 +48,38 @@ const escapeHtml = (value: string) =>
 
 const getInitialBudget = (): number => {
   if (typeof window === "undefined") {
-    return 62000;
+    return DEFAULT_BUDGET;
   }
 
   const saved = window.localStorage.getItem(BUDGET_KEY);
   if (!saved) {
-    return 62000;
+    return DEFAULT_BUDGET;
   }
 
   const parsed = Number(saved);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 62000;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_BUDGET;
+};
+
+type BackupData = {
+  version: number;
+  budget: number;
+  expenses: Expense[];
+};
+
+const isExpenseRecord = (value: unknown): value is Expense => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const expense = value as Partial<Expense>;
+  return (
+    typeof expense.id === "number" &&
+    typeof expense.title === "string" &&
+    typeof expense.amount === "number" &&
+    typeof expense.category === "string" &&
+    typeof expense.date === "string" &&
+    typeof expense.notes === "string"
+  );
 };
 
 function App() {
@@ -88,6 +95,7 @@ function App() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
@@ -142,6 +150,20 @@ function App() {
     }));
   }, [expenses]);
 
+  const chartData = useMemo(() => {
+    return categorySummary
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [categorySummary]);
+
+  const chartMaxValue = useMemo(() => {
+    if (chartData.length === 0) {
+      return 1;
+    }
+
+    return Math.max(...chartData.map((item) => item.total), 1);
+  }, [chartData]);
+
   const resetForm = () => {
     setTitle("");
     setAmount("");
@@ -149,6 +171,29 @@ function App() {
     setDate(new Date().toISOString().slice(0, 10));
     setNotes("");
     setEditingId(null);
+  };
+
+  const resetAllData = () => {
+    const confirmed = window.confirm(
+      "Clear all expense data and reset the tracker?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const resetState = createResetState();
+
+    setExpenses(resetState.expenses);
+    setBudget(resetState.budget);
+    setTitle(resetState.title);
+    setAmount(resetState.amount);
+    setCategory(resetState.category);
+    setDate(resetState.date);
+    setNotes(resetState.notes);
+    setSearch(resetState.search);
+    setSelectedCategory(resetState.selectedCategory);
+    setEditingId(resetState.editingId);
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -206,6 +251,74 @@ function App() {
     setCategory(expense.category);
     setDate(expense.date);
     setNotes(expense.notes);
+  };
+
+  const exportToJson = () => {
+    const backup: BackupData = {
+      version: 1,
+      budget,
+      expenses,
+    };
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: "application/json;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "expense-tracker-backup.json";
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  const handleJsonImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const raw = reader.result;
+
+        if (typeof raw !== "string") {
+          throw new Error("The selected file is empty.");
+        }
+
+        const parsed = JSON.parse(raw) as Partial<BackupData>;
+
+        if (
+          !parsed ||
+          parsed.version !== 1 ||
+          typeof parsed.budget !== "number" ||
+          !Array.isArray(parsed.expenses)
+        ) {
+          throw new Error("This file is not a valid expense backup.");
+        }
+
+        const normalizedExpenses = parsed.expenses.filter(isExpenseRecord);
+
+        if (normalizedExpenses.length !== parsed.expenses.length) {
+          throw new Error("Some expense entries in the file are invalid.");
+        }
+
+        setExpenses(normalizedExpenses);
+        setBudget(parsed.budget);
+        setSelectedCategory("All");
+        setSearch("");
+        resetForm();
+      } catch {
+        window.alert("Please choose a valid expense backup JSON file.");
+      }
+    };
+
+    reader.readAsText(file);
+    event.target.value = "";
   };
 
   const exportToCsv = () => {
@@ -533,6 +646,28 @@ function App() {
             <button
               type="button"
               className="secondary-button"
+              onClick={exportToJson}
+            >
+              Download JSON
+            </button>
+
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Upload JSON
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden-file-input"
+              onChange={handleJsonImport}
+            />
+            <button
+              type="button"
+              className="secondary-button"
               onClick={exportToCsv}
             >
               Download Excel
@@ -543,6 +678,14 @@ function App() {
               onClick={exportToPdf}
             >
               Download PDF
+            </button>
+
+            <button
+              type="button"
+              className="danger-button"
+              onClick={resetAllData}
+            >
+              Reset all
             </button>
           </div>
 
@@ -564,6 +707,45 @@ function App() {
                 <strong>{currencyFormatter.format(item.total)}</strong>
               </button>
             ))}
+          </div>
+
+          <div className="chart-section">
+            <div className="chart-header">
+              <h3>Spending by category</h3>
+              <span>Visual snapshot of your top spending areas</span>
+            </div>
+
+            {chartData.length === 0 ? (
+              <p className="empty-state">Add expenses to see your chart.</p>
+            ) : (
+              <div
+                className="chart-bars"
+                role="img"
+                aria-label="Expense chart by category"
+              >
+                {chartData.map((item) => {
+                  const height = Math.max(
+                    (item.total / chartMaxValue) * 100,
+                    8,
+                  );
+
+                  return (
+                    <div key={item.name} className="chart-column">
+                      <div className="chart-track">
+                        <div
+                          className="chart-bar"
+                          style={{ height: `${height}%` }}
+                        />
+                      </div>
+                      <span className="chart-label">{item.name}</span>
+                      <strong className="chart-value">
+                        {currencyFormatter.format(item.total)}
+                      </strong>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="expense-list">
